@@ -97,6 +97,12 @@ function report_boletim_status_key($acronym, $description): array {
 function report_boletim_get_all_attendance_statuses(): array {
     global $DB;
 
+    // Se o mod_attendance não estiver instalado, as tabelas attendance_*
+    // não existem no banco; não consulta nada.
+    if (!report_boletim_has_attendance()) {
+        return [];
+    }
+
     $sql = "SELECT st.id,
                    st.acronym,
                    st.description,

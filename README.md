@@ -173,15 +173,6 @@ Go to **Site administration → Plugins → Plugins overview**, find
 **Uninstall**. This removes the `report_boletim_status` table and all
 plugin settings.
 
-## Screenshots
-
-### Consolidated grades per course
-![Grades by category](docs/screenshots/boletim_grade.png)
-
-
-### Plugin configuration
-![Configuration page](docs/screenshots/boletim_config.png)
-
 ## License
 
 This plugin is licensed under the
@@ -189,4 +180,3 @@ This plugin is licensed under the
 license as Moodle core.
 
 ## Author
-Ginux - Gisele Brugger - gisele@ginux.online
