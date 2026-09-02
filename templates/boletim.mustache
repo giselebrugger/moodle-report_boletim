@@ -1,0 +1,55 @@
+{{#courses}}
+<h3><a href="{{courseurl}}">{{coursename}}</a></h3>
+
+{{#hasgrades}}
+<h4>{{#str}}notasporcategoria, report_boletim{{/str}}</h4>
+<table class="table table-striped generaltable">
+    <thead>
+        <tr>
+            <th>{{#str}}categoria, report_boletim{{/str}}</th>
+            <th>{{#str}}nota, report_boletim{{/str}}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#grades}}
+        <tr>
+            <td class="report-boletim-grade-name" style="--boletim-indent: {{indent}}">{{name}}</td>
+            <td>
+                {{grade}}
+                {{#showrange}}
+                 {{#range}} / {{{range}}}{{/range}}
+            {{/showrange}}
+
+            </td>
+        </tr>
+        {{/grades}}
+    </tbody>
+</table>
+{{/hasgrades}}
+
+{{#hasattendances}}
+<h4>{{#str}}frequenciaporatividade, report_boletim{{/str}}</h4>
+<table class="table table-striped generaltable">
+    <thead>
+        <tr>
+            <th>{{#str}}atividade, report_boletim{{/str}}</th>
+            <th>{{#str}}sessoes, report_boletim{{/str}}</th>
+            <th>{{#str}}presencas, report_boletim{{/str}}</th>
+            <th>{{#str}}ausencias, report_boletim{{/str}}</th>
+            <th>{{#str}}situacao, report_boletim{{/str}}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#attendances}}
+        <tr>
+            <td><a href="{{activityurl}}">{{activityname}}</a></td>
+            <td>{{sessions}}</td>
+            <td>{{presence}} — {{presencepercent}}</td>
+            <td>{{absence}} — {{absencepercent}}</td>
+            <td><span aria-hidden="true">{{icon}}</span><span class="accesshide">{{iconlabel}}</span></td>
+        </tr>
+        {{/attendances}}
+    </tbody>
+</table>
+{{/hasattendances}}
+{{/courses}}
