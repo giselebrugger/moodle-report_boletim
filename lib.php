@@ -486,12 +486,30 @@ function report_boletim_collect_grade_elements(
 function report_boletim_get_data(int $userid): array {
     global $DB, $CFG;
     require_once($CFG->libdir . '/gradelib.php');
+    
+     // Lê o modo de listagem de cursos configurado pelo admin.
+    $courselistmode = (int)get_config('report_boletim', 'courselistmode');
+    if (!$courselistmode) {
+        $courselistmode = 2; // Padrão: cursos em andamento
+    }
 
+    // Pede também o enddate, necessário para filtrar cursos "em andamento". 
     $courses = enrol_get_all_users_courses(
         $userid,
         true,
-        'id, fullname'
+        'id, fullname, enddate'
     );
+
+    $now = time();
+
+    // Se configurado para "somente em andamento", filtra por enddate.
+    // enddate = 0 significa "sem data de término" (sempre em andamento). 
+    if ($courselistmode === 2) {
+        $courses = array_filter($courses, function ($course) use ($now) {
+            return (int)$course->enddate === 0 || (int)$course->enddate > $now;
+        });
+    }
+
     $result = [];
     $hasattendance = report_boletim_has_attendance();
 

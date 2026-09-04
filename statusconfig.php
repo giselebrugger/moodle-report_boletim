@@ -16,7 +16,7 @@
 
 /**
  * Página de configuração: classificação global dos status de frequência,
- * modo de notas e limiar de risco de ausência.
+ * modo de notas, limiar de risco de ausência e filtro de cursos exibidos.
  *
  * @package    report_boletim
  * @copyright  2026 Ginux <gisele@ginux.online>
@@ -79,11 +79,19 @@ if (!$riskthreshold) {
 }
 $hasattendance = report_boletim_has_attendance();
 
+// Lê o modo de listagem de cursos (configuração do plugin).
+// 1 = todos os cursos matriculados; 2 = somente cursos em andamento (enddate > now ou sem enddate).
+$courselistmode = (int)get_config('report_boletim', 'courselistmode');
+if (!$courselistmode) {
+    $courselistmode = 1; // Padrão: todos os cursos.
+}
+
 $form = new status_form(null, [
-    'statuses'      => $statuses,
-    'grademode'     => $grademode,
-    'riskthreshold' => $riskthreshold,
-    'hasattendance' => $hasattendance,
+    'statuses'       => $statuses,
+    'grademode'      => $grademode,
+    'riskthreshold'  => $riskthreshold,
+    'hasattendance'  => $hasattendance,
+    'courselistmode' => $courselistmode,
 ]);
 
 if ($form->is_cancelled()) {
@@ -110,14 +118,19 @@ if ($data = $form->get_data()) {
         $DB->update_record('report_boletim_status', $record);
     }
 
+    // Salva o limiar de risco, já validado (0–100) em status_form::validation().
+    if (isset($data->riskthreshold)) {
+        set_config('riskthreshold', (int)$data->riskthreshold, 'report_boletim');
+    }
+
     // Salva a escolha do tipo de nota na configuração do plugin.
     if (isset($data->grademode)) {
         set_config('grademode', (int)$data->grademode, 'report_boletim');
     }
 
-    // Salva o limiar de risco, já validado (0–100) em status_form::validation().
-    if (isset($data->riskthreshold)) {
-        set_config('riskthreshold', (int)$data->riskthreshold, 'report_boletim');
+    // Salva o modo de listagem de cursos na configuração do plugin.
+    if (isset($data->courselistmode)) {
+        set_config('courselistmode', (int)$data->courselistmode, 'report_boletim');
     }
 
     redirect(

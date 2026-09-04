@@ -15,8 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Formulário de classificação global de status de frequência, modo de notas
- * e limiar de risco de ausência.
+ * Formulário de configuração global do plugin report_boletim.
  *
  * @package    report_boletim
  * @copyright  2026 Ginux <gisele@ginux.online>
@@ -27,27 +26,16 @@ namespace report_boletim\form;
 
 defined('MOODLE_INTERNAL') || die();
 
-// Nota: formslib.php já é exigido (require_once) por statusconfig.php antes
-// desta classe ser instanciada; não é seguro chamar require_once($CFG->...)
-// aqui no nível superior do arquivo, pois $CFG não está automaticamente no
-// escopo de um arquivo carregado pelo autoloader de classes do Moodle.
+require_once($CFG->libdir . '/formslib.php');
 
-/**
- * Formulário usado em statusconfig.php.
- */
 class status_form extends \moodleform {
-
-    /**
-     * Define os elementos do formulário.
-     *
-     * @return void
-     */
     public function definition() {
-        $mform         = $this->_form;
-        $statuses      = $this->_customdata['statuses'];
-        $grademode     = $this->_customdata['grademode'];
-        $riskthreshold = $this->_customdata['riskthreshold'];
-        $hasattendance = $this->_customdata['hasattendance'];
+        $mform          = $this->_form;
+        $statuses       = $this->_customdata['statuses'];
+        $grademode      = $this->_customdata['grademode'];
+        $riskthreshold  = $this->_customdata['riskthreshold'];
+        $hasattendance  = $this->_customdata['hasattendance'];
+        $courselistmode = $this->_customdata['courselistmode'];
 
         $options = [
             'presence' => get_string('classification_presence', 'report_boletim'),
@@ -55,18 +43,30 @@ class status_form extends \moodleform {
             'neutral'  => get_string('classification_neutral', 'report_boletim'),
         ];
 
-        // Bloco de classificação de status.
-        $mform->addElement(
-            'header',
-            'statusheader',
-            get_string('statusheader', 'report_boletim')
-        );
+        // Bloco de classificação de status (só faz sentido com attendance instalado).
+        if ($hasattendance) {
+            $mform->addElement(
+                'header',
+                'statusheader',
+                get_string('statusheader', 'report_boletim')
+            );
 
-        foreach ($statuses as $status) {
-            $name  = 'status_' . $status->id;
-            $label = s($status->acronym) . ' - ' . format_string($status->description);
-            $mform->addElement('select', $name, $label, $options);
-            $mform->setDefault($name, $status->classification);
+            foreach ($statuses as $status) {
+                $name  = 'status_' . $status->id;
+                $label = s($status->acronym) . ' - ' . format_string($status->description);
+                $mform->addElement('select', $name, $label, $options);
+                $mform->setDefault($name, $status->classification);
+            }
+
+            // Percentual de faltas para risco, movido para logo abaixo dos status.
+            $mform->addElement(
+                'text',
+                'riskthreshold',
+                get_string('riskthreshold', 'report_boletim')
+            );
+            $mform->setType('riskthreshold', PARAM_INT);
+            $mform->setDefault('riskthreshold', $riskthreshold);
+            $mform->addRule('riskthreshold', null, 'numeric', null, 'client');
         }
 
         // Bloco de configuração de quais notas aparecem no boletim.
@@ -90,40 +90,37 @@ class status_form extends \moodleform {
         );
         $mform->setDefault('grademode', $grademode);
 
-        // Limiar de risco (percentual de ausência), só faz sentido se o
-        // mod_attendance estiver instalado. O intervalo válido (0–100) é
-        // garantido no método validation() abaixo; 'numeric' aqui só
-        // impede caracteres não numéricos no lado do cliente.
-        if ($hasattendance) {
-            $mform->addElement(
-                'text',
-                'riskthreshold',
-                get_string('riskthreshold', 'report_boletim')
-            );
-            $mform->setType('riskthreshold', PARAM_INT);
-            $mform->setDefault('riskthreshold', $riskthreshold);
-            $mform->addRule('riskthreshold', null, 'numeric', null, 'client');
-        }
+        // NOVO BLOCO: configuração de quais cursos aparecem no boletim.
+        $mform->addElement(
+            'header',
+            'coursesheader',
+            get_string('coursesheader', 'report_boletim')
+        );
+
+        $courselistmodeoptions = [
+            1 => get_string('courselistmode_all', 'report_boletim'),
+            2 => get_string('courselistmode_inprogress', 'report_boletim'),
+        ];
+
+        $mform->addElement(
+            'select',
+            'courselistmode',
+            get_string('courselistmode', 'report_boletim'),
+            $courselistmodeoptions
+        );
+        $mform->setDefault('courselistmode', $courselistmode);
+        $mform->addHelpButton('courselistmode', 'courselistmode', 'report_boletim');
 
         $this->add_action_buttons(true, get_string('savechanges'));
     }
 
-    /**
-     * Validação de servidor: garante que o limiar de risco fica entre 0 e
-     * 100, já que a validação de cliente ('numeric') sozinha não impede
-     * valores negativos ou acima de 100.
-     *
-     * @param array $data Dados submetidos.
-     * @param array $files Arquivos submetidos.
-     * @return array Erros de validação, indexados pelo nome do campo.
-     */
     public function validation($data, $files) {
-        $errors = parent::validation($data, $files);
+        $errors = [];
 
         if (isset($data['riskthreshold'])) {
             $value = (int)$data['riskthreshold'];
             if ($value < 0 || $value > 100) {
-                $errors['riskthreshold'] = get_string('riskthreshold_range', 'report_boletim');
+                $errors['riskthreshold'] = get_string('invalidpercentage', 'report_boletim');
             }
         }
 
