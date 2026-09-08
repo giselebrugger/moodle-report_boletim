@@ -348,16 +348,168 @@ function report_boletim_get_category_items(
     }
 
     // Monta a árvore completa de categorias + grade_items.
+    //$gtree = new grade_tree($courseid, false, false);
     $gtree = new grade_tree($courseid, false, false);
-
+    
+    
     $items = [];
 
     // top_element é o array raiz da árvore; 'children' são os elementos de topo
     // (categorias raiz do curso).
     foreach ($gtree->top_element['children'] as $element) {
-        report_boletim_collect_grade_elements($items, $element, $userid, $grademode, 1);
+        report_boletim_collect_grade_elements($items, $element, $userid, $grademode, 1,$courseid);
     }
     return $items;
+}
+
+/**
+ * Ajusta nota e limites de um total de categoria/curso para a visão do aluno.
+ *
+ * Replica a lógica usada pelo relatório de usuário do Moodle para ocultar
+ * itens e recalcular totais que dependem de itens ocultos.
+ *
+ * Não grava alterações no banco.
+ *
+ * @param int $courseid
+ * @param int $userid
+ * @param grade_item $courseitem Item total de categoria ou do curso.
+ * @param float|null $finalgrade Nota final inicialmente calculada.
+ * @return array{
+ *     grade: float|null,
+ *     grademin: float,
+ *     grademax: float,
+ *     aggregationstatus: string|null,
+ *     aggregationweight: float|null
+ * }
+ */
+function report_boletim_adjust_hidden_total_and_bounds(
+    int $courseid,
+    int $userid,
+    grade_item $courseitem,
+    $finalgrade
+): array {
+    global $DB;
+
+    // O User report começa com os limites armazenados no item.
+    $grademin = (float)$courseitem->grademin;
+    $grademax = (float)$courseitem->grademax;
+
+    // Recupera a grade do aluno para o total e usa seus limites efetivos,
+    // quando existirem.
+    $coursegrade = grade_grade::fetch(array(
+        'userid' => $userid,
+        'itemid' => $courseitem->id,
+    ));
+
+    if ($coursegrade) {
+        $grademin = (float)$coursegrade->get_grade_min();
+        $grademax = (float)$coursegrade->get_grade_max();
+    } else {
+        $coursegrade = new grade_grade(array(
+            'userid' => $userid,
+            'itemid' => $courseitem->id,
+        ), false);
+    }
+
+    $coursegrade->load_grade_item();
+
+    $hint = $coursegrade->get_aggregation_hint();
+
+    $aggregationstatus = $hint['status'] ?? null;
+    $aggregationweight = $hint['weight'] ?? null;
+
+    /*
+     * Carrega todos os itens e todas as notas deste aluno no curso.
+     * É a mesma estrutura que o User report entrega para
+     * grade_grade::get_hiding_affected().
+     */
+    $items = grade_item::fetch_all(array('courseid' => $courseid));
+    $grades = array();
+
+    $sql = "
+        SELECT gg.*
+          FROM {grade_grades} gg
+          JOIN {grade_items} gi ON gi.id = gg.itemid
+         WHERE gg.userid = :userid
+           AND gi.courseid = :courseid
+    ";
+
+    $records = $DB->get_records_sql($sql, array(
+        'userid' => $userid,
+        'courseid' => $courseid,
+    ));
+
+    foreach ($records as $record) {
+        $grades[$record->itemid] = new grade_grade($record, false);
+    }
+
+    foreach ($items as $itemid => $item) {
+        if (!isset($grades[$itemid])) {
+            $grades[$itemid] = new grade_grade();
+            $grades[$itemid]->userid = $userid;
+            $grades[$itemid]->itemid = $item->id;
+        }
+
+        // A referência é importante: a API usa o grade_item ligado à nota.
+        $grades[$itemid]->grade_item =& $items[$itemid];
+    }
+
+    $hidingaffected = grade_grade::get_hiding_affected($grades, $items);
+
+    /*
+     * No User report, quando “Mostrar totais contendo itens ocultos” está
+     * habilitado, ele usa os valores recalculados de `altered`.
+     *
+     * É o comportamento que você precisa para preservar a nota do aluno:
+     * itens ocultos vazios de transferência não ampliam o máximo usado
+     * para determinar a letra.
+     */
+    if (array_key_exists($courseitem->id, $hidingaffected['altered'] ?? array())) {
+        $finalgrade = $hidingaffected['altered'][$courseitem->id];
+    }
+
+    if (array_key_exists($courseitem->id, $hidingaffected['alteredgrademin'] ?? array())) {
+        $grademin = (float)$hidingaffected['alteredgrademin'][$courseitem->id];
+    }
+
+    if (array_key_exists($courseitem->id, $hidingaffected['alteredgrademax'] ?? array())) {
+        $grademax = (float)$hidingaffected['alteredgrademax'][$courseitem->id];
+    }
+
+    if (array_key_exists($courseitem->id, $hidingaffected['alteredaggregationstatus'] ?? array())) {
+        $aggregationstatus = $hidingaffected['alteredaggregationstatus'][$courseitem->id];
+    }
+
+    if (array_key_exists($courseitem->id, $hidingaffected['alteredaggregationweight'] ?? array())) {
+        $aggregationweight = $hidingaffected['alteredaggregationweight'][$courseitem->id];
+    }
+
+    /*
+     * Também cobre a situação em que Moodle classifica o total como
+     * “unknown grades”, mas ainda calcula uma nota alternativa.
+     */
+    if (
+        !array_key_exists($courseitem->id, $hidingaffected['altered'] ?? array()) &&
+        array_key_exists($courseitem->id, $hidingaffected['unknowngrades'] ?? array())
+    ) {
+        $finalgrade = $hidingaffected['unknowngrades'][$courseitem->id];
+
+        if (array_key_exists($courseitem->id, $hidingaffected['alteredgrademin'] ?? array())) {
+            $grademin = (float)$hidingaffected['alteredgrademin'][$courseitem->id];
+        }
+
+        if (array_key_exists($courseitem->id, $hidingaffected['alteredgrademax'] ?? array())) {
+            $grademax = (float)$hidingaffected['alteredgrademax'][$courseitem->id];
+        }
+    }
+
+    return array(
+        'grade' => $finalgrade,
+        'grademin' => $grademin,
+        'grademax' => $grademax,
+        'aggregationstatus' => $aggregationstatus,
+        'aggregationweight' => $aggregationweight,
+    );
 }
 
 /**
@@ -376,7 +528,8 @@ function report_boletim_collect_grade_elements(
     array $element,
     int $userid,
     int $grademode,
-    int $level
+    int $level,
+    int $courseid
 ): void {
     global $DB, $CFG;
 
@@ -423,42 +576,72 @@ function report_boletim_collect_grade_elements(
     }
 
     // Se este nó (categoria ou item) deve ser incluído e está visível agora:
-    if (!empty($include) && $gradeitem) {
-        $grade = $DB->get_record('grade_grades', [
-            'itemid' => $gradeitem->id,
-            'userid' => $userid,
-        ]);
+    if (!empty($include) && $gradeitem) {        
+        
+       // Obtém a grade pela API do Moodle.
+        $gradegrade = $gradeitem->get_grade($userid, false);
 
-        if ($grade && $grade->finalgrade !== null) {
-            $display = grade_format_gradevalue(
-                (float)$grade->finalgrade,
-                $gradeitem,
-                true,
-                $gradeitem->get_displaytype(),
-                $gradeitem->get_decimals()
-            );
+        if ($gradegrade && $gradegrade->finalgrade !== null) { 
+           
+             // O relatório nativo usa o grade_item ligado ao grade_grade.
+             $gradegrade->load_grade_item();       
+            
+             $gradeval = $gradegrade->finalgrade;
+             $displayitem = $gradegrade->grade_item;
+          // Aplica exatamente a lógica do User report somente aos totais.
+    if (
+        $type === 'category' ||
+        $displayitem->is_category_item() ||
+        $displayitem->is_course_item()
+    ) {
+        $adjusted = report_boletim_adjust_hidden_total_and_bounds(
+            $courseid,
+            $userid,
+            $displayitem,
+            $gradeval
+        );
 
-            // Range formatado pelo próprio grade_item; se for escala, usa os
-            // textos da escala (ex.: IAM-AM).
-            $range = $gradeitem->get_formatted_range();
+        $gradeval = $adjusted['grade'];
 
-            if ($type === 'category') {
-                $name = format_string($object->fullname);
-            } else {
-                $name = format_string($gradeitem->itemname);
-            }
+        /*
+         * Não altere o objeto original permanentemente.
+         * A cópia será usada apenas para exibir o valor e a letra.
+         */
+        $displayitem = clone $displayitem;
+        $displayitem->grademin = $adjusted['grademin'];
+        $displayitem->grademax = $adjusted['grademax'];
+    }
 
-            // depth = nível atual na árvore; report_boletim_get_data usa isso para indent.
-            $depth = $level;
+    if ($gradeval === null) {
+        $display = '-';
+    } else {
+        $display = grade_format_gradevalue(
+            $gradeval,
+            $displayitem,
+            true,
+            null,
+            null
+        );
+    }
 
-            $items[] = [
-                'name'     => $name,
-                'display'  => $display,
-                'range'    => $range,
-                'itemtype' => $type === 'category' ? 'category' : $gradeitem->itemtype,
-                'depth'    => $depth,
-            ];
-        }
+    $range = $displayitem->get_formatted_range();
+
+    if ($type === 'category') {
+        $name = format_string($object->fullname);
+    } else {
+        $name = format_string($displayitem->itemname);
+    }
+
+    $items[] = array(
+        'name' => $name,
+        'display' => $display,
+        'range' => $range,
+        'itemtype' => $type === 'category'
+            ? 'category'
+            : $displayitem->itemtype,
+        'depth' => $level,
+    );
+}
     }
 
     // Percorre filhos (subcategorias / itens dentro da categoria).
@@ -469,7 +652,8 @@ function report_boletim_collect_grade_elements(
                 $child,
                 $userid,
                 $grademode,
-                $level + 1
+                $level + 1,
+                $courseid
             );
         }
     }
