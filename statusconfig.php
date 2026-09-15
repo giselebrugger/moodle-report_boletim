@@ -78,6 +78,13 @@ if (!$riskthreshold) {
     $riskthreshold = 25; // Padrão: 25% de faltas para considerar risco.
 }
 $hasattendance = report_boletim_has_attendance();
+// Controls whether attendance information is displayed in the report card.
+// Default: enabled
+$showattendance = get_config('report_boletim', 'showattendance');
+if ($showattendance === false || $showattendance === null) {
+    $showattendance = 1;
+}
+$showattendance = (int)$showattendance;
 
 // Lê o modo de listagem de cursos (configuração do plugin).
 // 1 = todos os cursos matriculados; 2 = somente cursos em andamento (enddate > now ou sem enddate).
@@ -91,6 +98,7 @@ $form = new status_form(null, [
     'grademode'      => $grademode,
     'riskthreshold'  => $riskthreshold,
     'hasattendance'  => $hasattendance,
+    'showattendance' => $showattendance,
     'courselistmode' => $courselistmode,
 ]);
 
@@ -118,6 +126,12 @@ if ($data = $form->get_data()) {
         $DB->update_record('report_boletim_status', $record);
     }
 
+        // Saves whether attendance information is displayed in the report card.
+    set_config(
+        'showattendance',
+        !empty($data->showattendance) ? 1 : 0,
+        'report_boletim'
+    );
     // Salva o limiar de risco, já validado (0–100) em status_form::validation().
     if (isset($data->riskthreshold)) {
         set_config('riskthreshold', (int)$data->riskthreshold, 'report_boletim');

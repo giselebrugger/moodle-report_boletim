@@ -65,3 +65,5 @@ $string['courselistmode'] = 'Quais cursos devem aparecer no boletim?';
 $string['courselistmode_help'] = 'Escolha se o boletim deve exibir todos os cursos em que o aluno está matriculado ou apenas os cursos ainda em andamento (data final maior que a data atual, ou sem data final definida).';
 $string['courselistmode_all'] = 'Todos os cursos matriculados';
 $string['courselistmode_inprogress'] = 'Somente cursos em andamento';
+$string['showattendance'] = 'Exibir informações de frequência no boletim';
+$string['showattendance_help'] = 'Quando habilitado, o boletim exibe as atividades de frequência, presenças, ausências, percentuais e indicadores de situação. Quando desabilitado, nenhuma informação de frequência é exibida.';

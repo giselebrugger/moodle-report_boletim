@@ -62,3 +62,5 @@ $string['courselistmode'] = 'Which courses should appear in the report?';
 $string['courselistmode_help'] = 'Choose whether the report should show all courses the student is enrolled in, or only courses that are still in progress (end date later than today, or no end date set).';
 $string['courselistmode_all'] = 'All enrolled courses';
 $string['courselistmode_inprogress'] = 'Only courses in progress';
+$string['showattendance'] = 'Show attendance information in the report card';
+$string['showattendance_help'] = 'When enabled, the report card displays attendance activities, presences, absences, percentages, and attendance status indicators. When disabled, no attendance information is displayed.';

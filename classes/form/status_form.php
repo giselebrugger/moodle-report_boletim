@@ -35,6 +35,7 @@ class status_form extends \moodleform {
         $grademode      = $this->_customdata['grademode'];
         $riskthreshold  = $this->_customdata['riskthreshold'];
         $hasattendance  = $this->_customdata['hasattendance'];
+        $showattendance = $this->_customdata['showattendance'];
         $courselistmode = $this->_customdata['courselistmode'];
 
         $options = [
@@ -51,6 +52,17 @@ class status_form extends \moodleform {
                 get_string('statusheader', 'report_boletim')
             );
 
+            $mform->addElement(
+                'checkbox',
+                'showattendance',
+                get_string('showattendance', 'report_boletim')
+            );
+            $mform->setDefault('showattendance', $showattendance);
+            $mform->addHelpButton(
+                'showattendance',
+                'showattendance',
+                'report_boletim'
+            );
             foreach ($statuses as $status) {
                 $name  = 'status_' . $status->id;
                 $label = s($status->acronym) . ' - ' . format_string($status->description);

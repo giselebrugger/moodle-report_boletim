@@ -697,6 +697,13 @@ function report_boletim_get_data(int $userid): array {
     $result = [];
     $hasattendance = report_boletim_has_attendance();
 
+    // Attendance is displayed only when the activity exists and the setting is enabled.
+    // Default is enabled for existing installations.
+    $showattendance = get_config('report_boletim', 'showattendance');
+    if ($showattendance === false || $showattendance === null) {
+        $showattendance = 1;
+    }
+    $showattendance = (int)$showattendance === 1;
     foreach ($courses as $course) {
         // Config global: grade_report_user_showrange (0=Ocultar, 1=Mostrar).
         $sitedefaultshowrange = (int)$CFG->grade_report_user_showrange;
@@ -746,36 +753,38 @@ function report_boletim_get_data(int $userid): array {
         }
 
         if ($hasattendance) {
-            foreach (report_boletim_get_attendance_activities($course->id) as $activity) {
-                $summary = report_boletim_get_attendance_summary(
-                    $userid,
-                    $activity->id
-                );
+            if ($hasattendance && $showattendance) {
+                foreach (report_boletim_get_attendance_activities($course->id) as $activity) {
+                    $summary = report_boletim_get_attendance_summary(
+                        $userid,
+                        $activity->id
+                    );
 
-                $entry->attendances[] = [
-                    'activityname' => format_string($activity->name),
-                    'activityurl' => (new moodle_url(
-                        '/mod/attendance/view.php',
-                        ['mode' => 0, 'id' => $activity->cmid]
-                    ))->out(false),
-                    'sessions' => $summary->hasdata ? (string)$summary->sessions : '-',
-                    'presence' => $summary->hasdata ? (string)$summary->presence : '-',
-                    'presencepercent' => $summary->hasdata
-                        ? $summary->presencepercent . '%'
-                        : '-',
-                    'absence' => $summary->hasdata ? (string)$summary->absence : '-',
-                    'absencepercent' => $summary->hasdata
-                        ? $summary->absencepercent . '%'
-                        : '-',
-                    'icon' => $summary->icon,
-                    'iconlabel' => $summary->iconlabel,
-                ];
+                    $entry->attendances[] = [
+                        'activityname' => format_string($activity->name),
+                        'activityurl' => (new moodle_url(
+                            '/mod/attendance/view.php',
+                            ['mode' => 0, 'id' => $activity->cmid]
+                        ))->out(false),
+                        'sessions' => $summary->hasdata ? (string)$summary->sessions : '-',
+                        'presence' => $summary->hasdata ? (string)$summary->presence : '-',
+                        'presencepercent' => $summary->hasdata
+                            ? $summary->presencepercent . '%'
+                            : '-',
+                        'absence' => $summary->hasdata ? (string)$summary->absence : '-',
+                        'absencepercent' => $summary->hasdata
+                            ? $summary->absencepercent . '%'
+                            : '-',
+                        'icon' => $summary->icon,
+                        'iconlabel' => $summary->iconlabel,
+                    ];
             }
         }
-
+        }
         $entry->hasgrades = !empty($entry->grades);
         $entry->hasattendances = !empty($entry->attendances);
         $result[] = $entry;
+       
     }
 
     return $result;
